@@ -1,0 +1,5 @@
+{
+  "python.analysis.extraPaths": [
+    "/Applications/Blender.app/Contents/Resources/5.2/scripts/modules"
+  ]
+}
