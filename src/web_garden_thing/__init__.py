@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Any
 __all__ = ["LeafSpec", "generate_leaf", "main"]
 
 if TYPE_CHECKING:
-    from .leaf_generator import LeafSpec, generate_leaf
+    from .generators.leaf_generator import LeafSpec, generate_leaf
 
 
 def __getattr__(name: str) -> Any:
