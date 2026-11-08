@@ -27,6 +27,22 @@ CROSS_SECTION_CUP = 0.045
 ROWS = 9
 COLUMNS = 5
 
+# LEAF DISTRIBUTION
+LEAF_COUNT = 6
+LEAF_HEIGHT_MIN = 0.35
+LEAF_HEIGHT_MAX = 2.0
+
+GOLDEN_ANGLE = 137.5
+LEAF_ANGLE_OFFSET = 0.0
+LEAF_ANGLE_VARIATION = 5.0
+
+LEAF_ELEVATION_MIN = -8.0
+LEAF_ELEVATION_MAX = 25.0
+LEAF_ELEVATION_VARIATION = 4.0
+
+LEAF_SCALE_MIN = 0.75
+LEAF_SCALE_MAX = 1.0
+
 
 # --------------------------------------------------
 # 2. VEIN PARAMETERS
@@ -35,7 +51,7 @@ COLUMNS = 5
 CENTRAL_VEIN_THICKNESS = 0.009
 SECONDARY_VEIN_THICKNESS = 0.0035
 
-SECONDARY_VEIN_COUNT = 5
+SECONDARY_VEIN_COUNT = 6
 
 # --------------------------------------------------
 # 3. STEM PARAMETERS
@@ -207,6 +223,73 @@ mesh = bpy.data.meshes.new("Leaf_Mesh")
 mesh.from_pydata(vertices, [], faces)
 mesh.update()
 
+
+
+def sample_leaf_mesh(u, t):
+    """
+    Interpolate across the actual triangles of the leaf mesh.
+
+    This version uses the same longitudinal spacing as
+    the mesh generator and samples its actual vertices.
+    """
+
+    # Keep sampling within the interior triangulated grid.
+    # The current secondary veins do not reach the end caps.
+    t = max(1.0 / (ROWS + 1), min(
+        t, ROWS / (ROWS + 1)
+    ))
+
+    u = max(-1.0, min(u, 1.0))
+
+    # Horizontal grid position
+    column_position = (
+        (u + 1.0) * 0.5 * (COLUMNS - 1)
+    )
+
+    column = min(
+        int(math.floor(column_position)),
+        COLUMNS - 2
+    )
+
+    x = column_position - column
+
+    # Correct longitudinal grid position
+    row_position = t * (ROWS + 1)
+
+    row = int(math.floor(row_position))
+    row = max(1, min(row, ROWS - 1))
+
+    y = row_position - row
+
+    # Retrieve actual mesh vertices
+    a_index = 1 + (row - 1) * COLUMNS + column
+    b_index = a_index + 1
+    d_index = a_index + COLUMNS
+    c_index = d_index + 1
+
+    a = Vector(mesh.vertices[a_index].co)
+    b = Vector(mesh.vertices[b_index].co)
+    c = Vector(mesh.vertices[c_index].co)
+    d = Vector(mesh.vertices[d_index].co)
+
+    # Interpolate over the actual A-C diagonal.
+    if y <= x:
+        point = (
+            a * (1.0 - x)
+            + b * (x - y)
+            + c * y
+        )
+    else:
+        point = (
+            a * (1.0 - y)
+            + c * x
+            + d * (y - x)
+        )
+
+    return point
+
+
+
 leaf = bpy.data.objects.new("Leaf_Prototype", mesh)
 
 collection.objects.link(leaf)
@@ -365,9 +448,8 @@ for i in range(SECONDARY_VEIN_COUNT):
             u = side * 0.85 * progress
             vein_t = t + 0.09 * progress
 
-            points.append(
-                leaf_surface(u, vein_t)
-            )
+            point = sample_leaf_mesh(u, vein_t)
+            points.append(point)
 
         create_vein(
             f"Leaf_Secondary_Vein_{i}_{side}",
@@ -553,14 +635,143 @@ stem = generate_stem()
 
 
 # --------------------------------------------------
-# 17. SELECT GENERATED LEAF
+# 16. LEAF ATTACHMENT AND DISTRIBUTION
+# --------------------------------------------------
+
+def attach_leaves():
+    # Collect the complete leaf prototype:
+    # one leaf mesh and all its separate vein objects.
+    leaf_parts = [
+        obj for obj in collection.objects
+        if (
+            obj.name == "Leaf_Prototype"
+            or obj.name.startswith("Leaf_Central_Vein")
+            or obj.name.startswith("Leaf_Secondary_Vein")
+        )
+    ]
+
+    if not leaf_parts:
+        print("No leaf prototype objects found.")
+        return
+
+    for i in range(LEAF_COUNT):
+
+        # --------------------------------------------------
+        # NATURAL LEAF ORIENTATION
+        # --------------------------------------------------
+
+        progress = i / max(LEAF_COUNT - 1, 1)
+
+        # Golden-angle phyllotaxis with subtle variation.
+        angle = (
+            math.radians(i * GOLDEN_ANGLE)
+            + math.radians(LEAF_ANGLE_OFFSET)
+            + math.radians(
+                math.sin(i * 2.1) * LEAF_ANGLE_VARIATION
+            )
+        )
+
+        # Gradually increase elevation towards the top.
+        elevation_degrees = (
+            LEAF_ELEVATION_MIN
+            + (LEAF_ELEVATION_MAX - LEAF_ELEVATION_MIN)
+            * progress
+        )
+
+        # Add individual variation.
+        elevation_degrees += (
+            math.sin(i * 1.7) * LEAF_ELEVATION_VARIATION
+        )
+
+        elevation = math.radians(elevation_degrees)
+
+        # Calculate the direction in which the leaf grows.
+        direction = Vector((
+            math.cos(angle) * math.cos(elevation),
+            math.sin(angle) * math.cos(elevation),
+            math.sin(elevation)
+        )).normalized()
+
+        # Alternate leaf heights along the stem.
+        height = (
+            LEAF_HEIGHT_MIN
+            + (LEAF_HEIGHT_MAX - LEAF_HEIGHT_MIN) * progress
+        )
+
+        # Create a parent Empty at the attachment point.
+        holder = bpy.data.objects.new(
+            f"Leaf_Holder_{i + 1}",
+            None
+        )
+
+        collection.objects.link(holder)
+
+        holder.location = Vector((
+            STEM_BEND_X * (height / STEM_HEIGHT) ** 2,
+            STEM_BEND_Y * math.sin(
+                math.pi * height / STEM_HEIGHT
+            ),
+            height
+        ))
+
+        holder.rotation_mode = 'QUATERNION'
+        holder.rotation_quaternion = direction.to_track_quat(
+            'Y',
+            'Z'
+        )
+
+        variation = (
+            0.94
+            + 0.06 * math.sin(i * 2.4)
+        )
+
+        scale = (
+            LEAF_SCALE_MIN
+            + (LEAF_SCALE_MAX - LEAF_SCALE_MIN) * progress
+        ) * variation
+
+        holder.scale = (scale, scale, scale)
+
+        # Duplicate every part of the leaf assembly.
+        for original in leaf_parts:
+
+            duplicate = original.copy()
+
+            # Mesh and curve data can be shared.
+            duplicate.data = original.data
+
+            collection.objects.link(duplicate)
+
+            # Parent the duplicate to the holder.
+            duplicate.parent = holder
+            duplicate.matrix_parent_inverse.identity()
+
+            duplicate.location = (0.0, 0.0, 0.0)
+            duplicate.rotation_euler = (0.0, 0.0, 0.0)
+            duplicate.scale = (1.0, 1.0, 1.0)
+
+    # Hide the original prototype objects.
+    # The duplicated leaf assemblies remain visible.
+    for original in leaf_parts:
+        original.hide_set(True)
+        original.hide_render = True
+
+
+attach_leaves()
+
+
+
+# --------------------------------------------------
+# 17. SELECT PLANT
 # --------------------------------------------------
 
 bpy.ops.object.select_all(action="DESELECT")
 
-leaf.select_set(True)
+for obj in collection.objects:
+    if obj == stem or obj.name.startswith("Leaf_Holder_"):
+        obj.select_set(True)
 
-bpy.context.view_layer.objects.active = leaf
+bpy.context.view_layer.objects.active = stem
 
 
 # --------------------------------------------------
