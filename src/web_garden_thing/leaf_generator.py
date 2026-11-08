@@ -4,9 +4,11 @@ import math
 import bmesh
 from mathutils import Vector
 
+
 # ==================================================
-# PROCEDURAL LEAF GENERATOR
+# PROCEDURAL PLANT GENERATOR
 # ==================================================
+
 
 # --------------------------------------------------
 # 1. LEAF PARAMETERS
@@ -27,8 +29,13 @@ CROSS_SECTION_CUP = 0.045
 ROWS = 9
 COLUMNS = 5
 
-# LEAF DISTRIBUTION
+
+# --------------------------------------------------
+# 2. LEAF DISTRIBUTION
+# --------------------------------------------------
+
 LEAF_COUNT = 6
+
 LEAF_HEIGHT_MIN = 0.35
 LEAF_HEIGHT_MAX = 2.0
 
@@ -45,16 +52,30 @@ LEAF_SCALE_MAX = 1.0
 
 
 # --------------------------------------------------
-# 2. VEIN PARAMETERS
+# 3. VEIN PARAMETERS
 # --------------------------------------------------
 
 CENTRAL_VEIN_THICKNESS = 0.009
-SECONDARY_VEIN_THICKNESS = 0.0035
 
 SECONDARY_VEIN_COUNT = 6
 
+# Total width of each secondary vein at its base.
+SECONDARY_VEIN_WIDTH = 0.008
+
+# Distance above the leaf surface.
+SECONDARY_VEIN_OFFSET = 0.002
+
+# Number of samples along each secondary vein.
+SECONDARY_VEIN_SAMPLES = 25
+
+# Secondary vein distribution.
+SECONDARY_VEIN_START = 0.18
+SECONDARY_VEIN_SPACING = 0.12
+SECONDARY_VEIN_REACH = 0.08
+
+
 # --------------------------------------------------
-# 3. STEM PARAMETERS
+# 4. STEM PARAMETERS
 # --------------------------------------------------
 
 STEM_HEIGHT = 2.5
@@ -72,7 +93,7 @@ STEM_COLOUR = (0.10, 0.25, 0.07, 1.0)
 
 
 # --------------------------------------------------
-# 4. MATERIAL PARAMETERS
+# 5. MATERIAL PARAMETERS
 # --------------------------------------------------
 
 COLOUR = (0.12, 0.32, 0.09, 1.0)
@@ -80,7 +101,7 @@ VEIN_COLOUR = (0.22, 0.42, 0.14, 1.0)
 
 
 # --------------------------------------------------
-# 5. COLLECTION SETUP
+# 6. COLLECTION SETUP
 # --------------------------------------------------
 
 COLLECTION_NAME = "Plant Generator"
@@ -91,47 +112,67 @@ if collection is None:
     collection = bpy.data.collections.new(COLLECTION_NAME)
     bpy.context.scene.collection.children.link(collection)
 
-# Remove previous generated objects
 for obj in list(collection.objects):
     bpy.data.objects.remove(obj, do_unlink=True)
 
 
 # --------------------------------------------------
-# 6. SHARED LEAF SURFACE FUNCTION
+# 7. MATERIAL CREATION
+# --------------------------------------------------
+
+def create_material(name, colour):
+
+    material = bpy.data.materials.get(name)
+
+    if material is None:
+        material = bpy.data.materials.new(name)
+
+    material.diffuse_color = colour
+    material.use_nodes = True
+
+    principled = material.node_tree.nodes.get("Principled BSDF")
+
+    if principled:
+        principled.inputs["Base Color"].default_value = colour
+        principled.inputs["Roughness"].default_value = 0.85
+
+    return material
+
+
+leaf_material = create_material("Leaf_Green", COLOUR)
+vein_material = create_material("Leaf_Vein_Green", VEIN_COLOUR)
+stem_material = create_material("Stem_Green", STEM_COLOUR)
+
+
+# --------------------------------------------------
+# 8. LEAF SURFACE FUNCTION
 # --------------------------------------------------
 
 def leaf_surface(u, t):
 
-    # Ensure the base and tip terminate at a single point
     if t <= 0.0 or t >= 1.0:
         return (0.0, LENGTH * t, 0.0)
 
-    # Leaf width profile
     width_profile = (
         math.sin(math.pi * t) ** (1.0 / TIP_SHARPNESS)
     )
 
-    # Gradually widen towards the upper portion
     width_profile *= (
         BASE_TAPER + (1.0 - BASE_TAPER) * t
     )
 
-    # Horizontal position
     x = u * WIDTH * 0.5 * width_profile
 
-    # Subtle natural asymmetry
-    x += ASYMMETRY * WIDTH * math.sin(math.pi * t)
+    x += (
+        ASYMMETRY
+        * WIDTH
+        * math.sin(math.pi * t)
+    )
 
-    # Longitudinal position
     y = LENGTH * t
 
-    # Raised central ridge
     ridge = CENTRAL_RIDGE * (1.0 - abs(u))
-
-    # Concave cross-section
     cup = CROSS_SECTION_CUP * (abs(u) ** 1.7)
-
-    # Longitudinal curvature
     bend = LONGITUDINAL_CURVE * math.sin(math.pi * t)
 
     z = ridge - cup + bend
@@ -140,52 +181,43 @@ def leaf_surface(u, t):
 
 
 # --------------------------------------------------
-# 7. GEOMETRY GENERATION
+# 9. GENERATE LEAF MESH
 # --------------------------------------------------
 
 vertices = []
 faces = []
 
-# Base attachment point
 vertices.append((0.0, 0.0, 0.0))
 
-base_index = 0
-
-# Generate leaf surface vertices
 for row in range(1, ROWS + 1):
 
     t = row / (ROWS + 1)
 
     for col in range(COLUMNS):
 
-        u = (col / (COLUMNS - 1)) * 2.0 - 1.0
+        u = (
+            (col / (COLUMNS - 1)) * 2.0 - 1.0
+        )
 
         vertices.append(leaf_surface(u, t))
 
 
-# Tip vertex
 tip_index = len(vertices)
 
 vertices.append((0.0, LENGTH, 0.0))
 
 
-# --------------------------------------------------
-# 8. BUILD TRIANGULAR FACES
-# --------------------------------------------------
-
-first_row = 1
-
-# Connect base to first row
+# Base triangles.
 for col in range(COLUMNS - 1):
 
     faces.append((
-        base_index,
-        first_row + col + 1,
-        first_row + col
+        0,
+        col + 2,
+        col + 1
     ))
 
 
-# Connect interior rows
+# Interior triangles.
 for row in range(ROWS - 1):
 
     current = 1 + row * COLUMNS
@@ -202,7 +234,7 @@ for row in range(ROWS - 1):
         faces.append((a, c, d))
 
 
-# Connect final row to tip
+# Tip triangles.
 last_row = 1 + (ROWS - 1) * COLUMNS
 
 for col in range(COLUMNS - 1):
@@ -214,34 +246,52 @@ for col in range(COLUMNS - 1):
     ))
 
 
-# --------------------------------------------------
-# 9. CREATE BLENDER MESH
-# --------------------------------------------------
-
 mesh = bpy.data.meshes.new("Leaf_Mesh")
-
 mesh.from_pydata(vertices, [], faces)
 mesh.update()
 
+leaf = bpy.data.objects.new("Leaf_Prototype", mesh)
+collection.objects.link(leaf)
+
+leaf.data.materials.append(leaf_material)
+
+for polygon in mesh.polygons:
+    polygon.use_smooth = False
 
 
-def sample_leaf_mesh(u, t):
+# --------------------------------------------------
+# 10. LEAF PROPERTIES
+# --------------------------------------------------
+
+leaf["length"] = LENGTH
+leaf["width"] = WIDTH
+leaf["longitudinal_curve"] = LONGITUDINAL_CURVE
+leaf["central_ridge"] = CENTRAL_RIDGE
+leaf["base_taper"] = BASE_TAPER
+leaf["tip_sharpness"] = TIP_SHARPNESS
+leaf["asymmetry"] = ASYMMETRY
+leaf["cross_section_cup"] = CROSS_SECTION_CUP
+leaf["rows"] = ROWS
+leaf["columns"] = COLUMNS
+
+
+# --------------------------------------------------
+# 11. SAMPLE LEAF SURFACE
+# --------------------------------------------------
+
+def sample_leaf_surface(target_mesh, u, t):
     """
-    Interpolate across the actual triangles of the leaf mesh.
-
-    This version uses the same longitudinal spacing as
-    the mesh generator and samples its actual vertices.
+    Return the exact interpolated position and normal
+    of a triangle on the leaf mesh.
     """
 
-    # Keep sampling within the interior triangulated grid.
-    # The current secondary veins do not reach the end caps.
-    t = max(1.0 / (ROWS + 1), min(
-        t, ROWS / (ROWS + 1)
-    ))
+    t = max(
+        1.0 / (ROWS + 1),
+        min(t, ROWS / (ROWS + 1))
+    )
 
     u = max(-1.0, min(u, 1.0))
 
-    # Horizontal grid position
     column_position = (
         (u + 1.0) * 0.5 * (COLUMNS - 1)
     )
@@ -253,7 +303,6 @@ def sample_leaf_mesh(u, t):
 
     x = column_position - column
 
-    # Correct longitudinal grid position
     row_position = t * (ROWS + 1)
 
     row = int(math.floor(row_position))
@@ -261,152 +310,87 @@ def sample_leaf_mesh(u, t):
 
     y = row_position - row
 
-    # Retrieve actual mesh vertices
     a_index = 1 + (row - 1) * COLUMNS + column
     b_index = a_index + 1
     d_index = a_index + COLUMNS
     c_index = d_index + 1
 
-    a = Vector(mesh.vertices[a_index].co)
-    b = Vector(mesh.vertices[b_index].co)
-    c = Vector(mesh.vertices[c_index].co)
-    d = Vector(mesh.vertices[d_index].co)
+    a = Vector(target_mesh.vertices[a_index].co)
+    b = Vector(target_mesh.vertices[b_index].co)
+    c = Vector(target_mesh.vertices[c_index].co)
+    d = Vector(target_mesh.vertices[d_index].co)
 
-    # Interpolate over the actual A-C diagonal.
     if y <= x:
+
         point = (
             a * (1.0 - x)
             + b * (x - y)
             + c * y
         )
+
+        normal = (b - a).cross(c - a)
+
     else:
+
         point = (
             a * (1.0 - y)
             + c * x
             + d * (y - x)
         )
 
-    return point
+        normal = (c - a).cross(d - a)
 
+    normal.normalize()
 
-
-leaf = bpy.data.objects.new("Leaf_Prototype", mesh)
-
-collection.objects.link(leaf)
-
-# Flat shading
-for polygon in mesh.polygons:
-    polygon.use_smooth = False
+    return point, normal
 
 
 # --------------------------------------------------
-# 10. LEAF MATERIAL
+# 12. CENTRAL VEIN CREATION
 # --------------------------------------------------
 
-material = bpy.data.materials.get("Leaf_Green")
+def create_central_vein(points):
 
-if material is None:
-    material = bpy.data.materials.new("Leaf_Green")
-
-material.diffuse_color = COLOUR
-material.use_nodes = True
-
-principled = material.node_tree.nodes.get("Principled BSDF")
-
-if principled:
-    principled.inputs["Base Color"].default_value = COLOUR
-    principled.inputs["Roughness"].default_value = 0.85
-
-leaf.data.materials.clear()
-leaf.data.materials.append(material)
-
-
-# --------------------------------------------------
-# 11. STORE GENERATOR PARAMETERS
-# --------------------------------------------------
-
-leaf["length"] = LENGTH
-leaf["width"] = WIDTH
-
-leaf["longitudinal_curve"] = LONGITUDINAL_CURVE
-leaf["central_ridge"] = CENTRAL_RIDGE
-
-leaf["base_taper"] = BASE_TAPER
-leaf["tip_sharpness"] = TIP_SHARPNESS
-
-leaf["asymmetry"] = ASYMMETRY
-leaf["cross_section_cup"] = CROSS_SECTION_CUP
-
-leaf["rows"] = ROWS
-leaf["columns"] = COLUMNS
-
-
-# --------------------------------------------------
-# 12. VEIN MATERIAL
-# --------------------------------------------------
-
-vein_material = bpy.data.materials.get("Leaf_Vein_Green")
-
-if vein_material is None:
-    vein_material = bpy.data.materials.new("Leaf_Vein_Green")
-
-vein_material.diffuse_color = VEIN_COLOUR
-vein_material.use_nodes = True
-
-principled = vein_material.node_tree.nodes.get("Principled BSDF")
-
-if principled:
-    principled.inputs["Base Color"].default_value = VEIN_COLOUR
-    principled.inputs["Roughness"].default_value = 0.85
-
-
-# --------------------------------------------------
-# 13. VEIN GENERATION FUNCTION
-# --------------------------------------------------
-
-def create_vein(name, points, thickness):
-
-    curve_data = bpy.data.curves.new(name, "CURVE")
+    curve_data = bpy.data.curves.new(
+        "Central_Vein_Curve",
+        "CURVE"
+    )
 
     curve_data.dimensions = "3D"
     curve_data.resolution_u = 1
 
-    curve_data.bevel_depth = thickness
+    curve_data.bevel_depth = CENTRAL_VEIN_THICKNESS
     curve_data.bevel_resolution = 0
 
     spline = curve_data.splines.new("POLY")
     spline.points.add(len(points) - 1)
 
-    for i, position in enumerate(points):
+    for i, point in enumerate(points):
 
         spline.points[i].co = (
-            position[0],
-            position[1],
-            position[2],
+            point.x,
+            point.y,
+            point.z,
             1.0
         )
 
-    vein = bpy.data.objects.new(name, curve_data)
+    vein = bpy.data.objects.new(
+        "Leaf_Central_Vein",
+        curve_data
+    )
 
     collection.objects.link(vein)
-
     vein.data.materials.append(vein_material)
+
+    vein["vein_type"] = "central"
 
     return vein
 
 
-# --------------------------------------------------
-# 14. CENTRAL MIDRIB FROM MESH VERTICES
-# --------------------------------------------------
-
-central_points = []
-
-# Leaf base
-central_points.append(
+central_points = [
     mesh.vertices[0].co.copy()
-)
+]
 
-# Centre vertex from every row
 middle_column = COLUMNS // 2
 
 for row in range(ROWS):
@@ -417,44 +401,204 @@ for row in range(ROWS):
         mesh.vertices[vertex_index].co.copy()
     )
 
-# Leaf tip
 central_points.append(
     mesh.vertices[-1].co.copy()
 )
 
-create_vein(
-    "Leaf_Central_Vein",
-    central_points,
-    CENTRAL_VEIN_THICKNESS
-)
+central_vein = create_central_vein(central_points)
 
 
 # --------------------------------------------------
-# 15. SECONDARY VEINS
+# 13. DEFORM LEAF MESH
 # --------------------------------------------------
 
-for i in range(SECONDARY_VEIN_COUNT):
+def deform_leaf_mesh(obj, sweep, droop):
 
-    t = 0.22 + i * 0.12
+    for vertex in obj.data.vertices:
 
-    for side in [-1, 1]:
+        co = vertex.co
 
-        points = []
+        t = max(
+            0.0,
+            min(co.y / LENGTH, 1.0)
+        )
 
-        for step in range(7):
+        profile = math.sin(math.pi * t)
 
-            progress = step / 6
+        co.x += sweep * profile
+        co.z += droop * profile
 
-            u = side * 0.85 * progress
-            vein_t = t + 0.09 * progress
+    obj.data.update()
 
-            point = sample_leaf_mesh(u, vein_t)
-            points.append(point)
 
-        create_vein(
-            f"Leaf_Secondary_Vein_{i}_{side}",
-            points,
-            SECONDARY_VEIN_THICKNESS
+# --------------------------------------------------
+# 14. CREATE SECONDARY VEIN MESH
+# --------------------------------------------------
+
+def create_secondary_vein_mesh(
+    leaf_mesh,
+    vein_index,
+    side
+):
+    """
+    Construct a tapered ribbon directly on the
+    triangulated leaf surface.
+
+    Every ribbon vertex is sampled from the leaf mesh.
+    """
+
+    ribbon_vertices = []
+    ribbon_faces = []
+
+    start_t = (
+        SECONDARY_VEIN_START
+        + vein_index * SECONDARY_VEIN_SPACING
+    )
+
+    for step in range(SECONDARY_VEIN_SAMPLES + 1):
+
+        progress = step / SECONDARY_VEIN_SAMPLES
+
+        u = side * 0.85 * progress
+
+        t = (
+            start_t
+            + SECONDARY_VEIN_REACH * progress
+        )
+
+        point, normal = sample_leaf_surface(
+            leaf_mesh.data,
+            u,
+            t
+        )
+
+        # Estimate the direction of the vein.
+        previous_progress = max(0.0, progress - 0.001)
+        next_progress = min(1.0, progress + 0.001)
+
+        previous_point, _ = sample_leaf_surface(
+            leaf_mesh.data,
+            side * 0.85 * previous_progress,
+            start_t + SECONDARY_VEIN_REACH * previous_progress
+        )
+
+        next_point, _ = sample_leaf_surface(
+            leaf_mesh.data,
+            side * 0.85 * next_progress,
+            start_t + SECONDARY_VEIN_REACH * next_progress
+        )
+
+        tangent = (next_point - previous_point).normalized()
+
+        # Find the direction across the vein.
+        lateral = tangent.cross(normal).normalized()
+
+        # Taper towards the outer end.
+        width_profile = (
+            0.12 + 0.88 * (1.0 - progress) ** 0.8
+        )
+
+        half_width = (
+            SECONDARY_VEIN_WIDTH
+            * width_profile
+            * 0.5
+        )
+
+        # Slight offset prevents z-fighting.
+        surface_point = (
+            point
+            + normal * SECONDARY_VEIN_OFFSET
+        )
+
+        left = (
+            surface_point
+            - lateral * half_width
+        )
+
+        right = (
+            surface_point
+            + lateral * half_width
+        )
+
+        ribbon_vertices.append(tuple(left))
+        ribbon_vertices.append(tuple(right))
+
+
+    # Join consecutive pairs into a continuous strip.
+    for step in range(SECONDARY_VEIN_SAMPLES):
+
+        a = step * 2
+        b = a + 1
+        c = a + 3
+        d = a + 2
+
+        ribbon_faces.append((a, b, c, d))
+
+
+    # Create the mesh.
+    vein_mesh = bpy.data.meshes.new(
+        f"Secondary_Vein_Mesh_{vein_index}_{side}"
+    )
+
+    vein_mesh.from_pydata(
+        ribbon_vertices,
+        [],
+        ribbon_faces
+    )
+
+    vein_mesh.update()
+
+    vein = bpy.data.objects.new(
+        f"Leaf_Secondary_Vein_{vein_index}_{side}",
+        vein_mesh
+    )
+
+    collection.objects.link(vein)
+    vein.data.materials.append(vein_material)
+
+    vein["vein_type"] = "secondary"
+    vein["vein_index"] = vein_index
+    vein["vein_side"] = side
+
+    for polygon in vein_mesh.polygons:
+        polygon.use_smooth = False
+
+    return vein
+
+
+# --------------------------------------------------
+# 15. REGENERATE CENTRAL VEIN
+# --------------------------------------------------
+
+def regenerate_central_vein(leaf_mesh, vein):
+
+    points = [
+        leaf_mesh.data.vertices[0].co.copy()
+    ]
+
+    middle_column = COLUMNS // 2
+
+    for row in range(ROWS):
+
+        vertex_index = 1 + row * COLUMNS + middle_column
+
+        points.append(
+            leaf_mesh.data.vertices[vertex_index].co.copy()
+        )
+
+    points.append(
+        leaf_mesh.data.vertices[-1].co.copy()
+    )
+
+    spline = vein.data.splines[0]
+
+    for i, point in enumerate(points):
+
+        spline.points[i].co = (
+            point.x,
+            point.y,
+            point.z,
+            1.0
         )
 
 
@@ -467,14 +611,9 @@ def generate_stem():
     vertices = []
     faces = []
 
-    # Generate cross-sectional rings
     for segment in range(STEM_SEGMENTS + 1):
 
         t = segment / STEM_SEGMENTS
-
-        # ------------------------------------------
-        # STEM CENTRELINE
-        # ------------------------------------------
 
         center = Vector((
             STEM_BEND_X * t ** 2,
@@ -482,34 +621,21 @@ def generate_stem():
             STEM_HEIGHT * t
         ))
 
-        # Tangent along the stem
         tangent = Vector((
             2.0 * STEM_BEND_X * t,
             STEM_BEND_Y * math.pi * math.cos(math.pi * t),
             STEM_HEIGHT
         )).normalized()
 
-        # ------------------------------------------
-        # CROSS-SECTION ORIENTATION
-        # ------------------------------------------
-
         reference = Vector((0.0, 1.0, 0.0))
 
         axis_u = tangent.cross(reference).normalized()
         axis_v = tangent.cross(axis_u).normalized()
 
-        # ------------------------------------------
-        # TAPER
-        # ------------------------------------------
-
         radius = (
             STEM_BASE_RADIUS * (1.0 - t)
             + STEM_TIP_RADIUS * t
         )
-
-        # ------------------------------------------
-        # GENERATE RING VERTICES
-        # ------------------------------------------
 
         for side in range(STEM_SIDES):
 
@@ -520,13 +646,8 @@ def generate_stem():
                 + axis_v * math.sin(angle)
             ) * radius
 
-            position = center + offset
+            vertices.append(tuple(center + offset))
 
-            vertices.append(tuple(position))
-
-    # ----------------------------------------------
-    # CONNECT RINGS WITH QUAD FACES
-    # ----------------------------------------------
 
     for segment in range(STEM_SEGMENTS):
 
@@ -543,9 +664,6 @@ def generate_stem():
 
             faces.append((a, b, c, d))
 
-    # ----------------------------------------------
-    # CLOSE STEM ENDS
-    # ----------------------------------------------
 
     faces.append(tuple(
         range(STEM_SIDES - 1, -1, -1)
@@ -558,16 +676,12 @@ def generate_stem():
         for side in range(STEM_SIDES)
     ))
 
-    # ----------------------------------------------
-    # CREATE MESH
-    # ----------------------------------------------
 
     stem_mesh = bpy.data.meshes.new("Stem_Mesh")
 
     stem_mesh.from_pydata(vertices, [], faces)
     stem_mesh.update()
 
-    # Recalculate normals
     bm = bmesh.new()
     bm.from_mesh(stem_mesh)
 
@@ -587,44 +701,16 @@ def generate_stem():
     )
 
     collection.objects.link(stem)
+    stem.data.materials.append(stem_material)
 
-    # Flat shading
     for polygon in stem_mesh.polygons:
         polygon.use_smooth = False
-
-    # ----------------------------------------------
-    # STEM MATERIAL
-    # ----------------------------------------------
-
-    material = bpy.data.materials.get("Stem_Green")
-
-    if material is None:
-        material = bpy.data.materials.new("Stem_Green")
-
-    material.diffuse_color = STEM_COLOUR
-    material.use_nodes = True
-
-    principled = material.node_tree.nodes.get(
-        "Principled BSDF"
-    )
-
-    if principled:
-        principled.inputs["Base Color"].default_value = STEM_COLOUR
-        principled.inputs["Roughness"].default_value = 0.85
-
-    stem.data.materials.append(material)
-
-    # ----------------------------------------------
-    # STORE PARAMETERS
-    # ----------------------------------------------
 
     stem["height"] = STEM_HEIGHT
     stem["base_radius"] = STEM_BASE_RADIUS
     stem["tip_radius"] = STEM_TIP_RADIUS
-
     stem["bend_x"] = STEM_BEND_X
     stem["bend_y"] = STEM_BEND_Y
-
     stem["segments"] = STEM_SEGMENTS
     stem["sides"] = STEM_SIDES
 
@@ -635,34 +721,24 @@ stem = generate_stem()
 
 
 # --------------------------------------------------
-# 16. LEAF ATTACHMENT AND DISTRIBUTION
+# 17. ATTACH AND DISTRIBUTE LEAVES
 # --------------------------------------------------
 
 def attach_leaves():
-    # Collect the complete leaf prototype:
-    # one leaf mesh and all its separate vein objects.
-    leaf_parts = [
-        obj for obj in collection.objects
-        if (
-            obj.name == "Leaf_Prototype"
-            or obj.name.startswith("Leaf_Central_Vein")
-            or obj.name.startswith("Leaf_Secondary_Vein")
-        )
-    ]
 
-    if not leaf_parts:
-        print("No leaf prototype objects found.")
-        return
+    leaf_parts = [
+        leaf,
+        central_vein
+    ]
 
     for i in range(LEAF_COUNT):
 
-        # --------------------------------------------------
-        # NATURAL LEAF ORIENTATION
-        # --------------------------------------------------
-
         progress = i / max(LEAF_COUNT - 1, 1)
 
-        # Golden-angle phyllotaxis with subtle variation.
+        # ------------------------------------------
+        # LEAF ROTATION
+        # ------------------------------------------
+
         angle = (
             math.radians(i * GOLDEN_ANGLE)
             + math.radians(LEAF_ANGLE_OFFSET)
@@ -671,34 +747,39 @@ def attach_leaves():
             )
         )
 
-        # Gradually increase elevation towards the top.
         elevation_degrees = (
             LEAF_ELEVATION_MIN
             + (LEAF_ELEVATION_MAX - LEAF_ELEVATION_MIN)
             * progress
         )
 
-        # Add individual variation.
         elevation_degrees += (
             math.sin(i * 1.7) * LEAF_ELEVATION_VARIATION
         )
 
         elevation = math.radians(elevation_degrees)
 
-        # Calculate the direction in which the leaf grows.
         direction = Vector((
             math.cos(angle) * math.cos(elevation),
             math.sin(angle) * math.cos(elevation),
             math.sin(elevation)
         )).normalized()
 
-        # Alternate leaf heights along the stem.
+
+        # ------------------------------------------
+        # LEAF HEIGHT
+        # ------------------------------------------
+
         height = (
             LEAF_HEIGHT_MIN
             + (LEAF_HEIGHT_MAX - LEAF_HEIGHT_MIN) * progress
         )
 
-        # Create a parent Empty at the attachment point.
+
+        # ------------------------------------------
+        # CREATE HOLDER
+        # ------------------------------------------
+
         holder = bpy.data.objects.new(
             f"Leaf_Holder_{i + 1}",
             None
@@ -714,15 +795,20 @@ def attach_leaves():
             height
         ))
 
-        holder.rotation_mode = 'QUATERNION'
+        holder.rotation_mode = "QUATERNION"
+
         holder.rotation_quaternion = direction.to_track_quat(
-            'Y',
-            'Z'
+            "Y",
+            "Z"
         )
 
+
+        # ------------------------------------------
+        # LEAF SCALE
+        # ------------------------------------------
+
         variation = (
-            0.94
-            + 0.06 * math.sin(i * 2.4)
+            0.94 + 0.06 * math.sin(i * 2.4)
         )
 
         scale = (
@@ -732,17 +818,20 @@ def attach_leaves():
 
         holder.scale = (scale, scale, scale)
 
-        # Duplicate every part of the leaf assembly.
+
+        # ------------------------------------------
+        # DUPLICATE PROTOTYPES
+        # ------------------------------------------
+
+        duplicates = {}
+
         for original in leaf_parts:
 
             duplicate = original.copy()
-
-            # Mesh and curve data can be shared.
-            duplicate.data = original.data
+            duplicate.data = original.data.copy()
 
             collection.objects.link(duplicate)
 
-            # Parent the duplicate to the holder.
             duplicate.parent = holder
             duplicate.matrix_parent_inverse.identity()
 
@@ -750,9 +839,65 @@ def attach_leaves():
             duplicate.rotation_euler = (0.0, 0.0, 0.0)
             duplicate.scale = (1.0, 1.0, 1.0)
 
-    # Hide the original prototype objects.
-    # The duplicated leaf assemblies remain visible.
+            duplicates[original.name] = duplicate
+
+
+        leaf_mesh = duplicates["Leaf_Prototype"]
+        central = duplicates["Leaf_Central_Vein"]
+
+
+        # ------------------------------------------
+        # INDIVIDUAL LEAF DEFORMATION
+        # ------------------------------------------
+
+        sweep = math.sin(i * 2.3) * 0.08
+        droop = math.sin(i * 1.7) * 0.12
+
+        deform_leaf_mesh(
+            leaf_mesh,
+            sweep,
+            droop
+        )
+
+
+        # ------------------------------------------
+        # REGENERATE CENTRAL VEIN
+        # ------------------------------------------
+
+        regenerate_central_vein(
+            leaf_mesh,
+            central
+        )
+
+
+        # ------------------------------------------
+        # GENERATE SECONDARY VEIN MESHES
+        # ------------------------------------------
+
+        for vein_index in range(SECONDARY_VEIN_COUNT):
+
+            for side in [-1, 1]:
+
+                vein = create_secondary_vein_mesh(
+                    leaf_mesh,
+                    vein_index,
+                    side
+                )
+
+                vein.parent = holder
+                vein.matrix_parent_inverse.identity()
+
+                vein.location = (0.0, 0.0, 0.0)
+                vein.rotation_euler = (0.0, 0.0, 0.0)
+                vein.scale = (1.0, 1.0, 1.0)
+
+
+    # ----------------------------------------------
+    # HIDE ORIGINAL PROTOTYPES
+    # ----------------------------------------------
+
     for original in leaf_parts:
+
         original.hide_set(True)
         original.hide_render = True
 
@@ -760,30 +905,42 @@ def attach_leaves():
 attach_leaves()
 
 
-
 # --------------------------------------------------
-# 17. SELECT PLANT
+# 18. SELECT GENERATED PLANT
 # --------------------------------------------------
 
 bpy.ops.object.select_all(action="DESELECT")
 
 for obj in collection.objects:
-    if obj == stem or obj.name.startswith("Leaf_Holder_"):
+
+    if (
+        obj == stem
+        or obj.name.startswith("Leaf_Holder_")
+    ):
         obj.select_set(True)
 
 bpy.context.view_layer.objects.active = stem
 
 
 # --------------------------------------------------
-# 18. COMPLETION
+# 19. COMPLETION REPORT
 # --------------------------------------------------
 
+objects_per_leaf = (
+    2 + SECONDARY_VEIN_COUNT * 2
+)
+
 print("------------------------------------")
-print("PROCEDURAL LEAF GENERATED")
+print("PROCEDURAL PLANT GENERATED")
 print("------------------------------------")
-print(f"Length: {LENGTH}")
-print(f"Width: {WIDTH}")
+print(f"Leaves: {LEAF_COUNT}")
+print(f"Objects per leaf: {objects_per_leaf}")
+print(f"Total leaf assembly objects: {LEAF_COUNT * objects_per_leaf}")
+print(f"Stem height: {STEM_HEIGHT}")
+print(f"Leaf length: {LENGTH}")
+print(f"Leaf width: {WIDTH}")
 print(f"Mesh vertices: {len(mesh.vertices)}")
 print(f"Mesh faces: {len(mesh.polygons)}")
 print(f"Secondary vein pairs: {SECONDARY_VEIN_COUNT}")
+print(f"Samples per secondary vein: {SECONDARY_VEIN_SAMPLES}")
 print("------------------------------------")
