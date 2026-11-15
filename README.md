@@ -1,5 +1,3 @@
-# Web Garden Thing
-
 # 🌿 Web Garden Thing
 
 **A procedural botanical world inspired by British temperate woodland.**
@@ -8,7 +6,7 @@ Web Garden Thing is a procedural 3D modelling project exploring the creation of 
 
 Inspired by the native flora of Britain and north-western Europe, the project aims to develop a diverse digital collection of plants before eventually bringing them together into an interactive, procedurally populated natural environment.
 
-The project combines botanical research, procedural modelling and environmental design. Its central ambition is to create a digital woodland that feels botanically diverse and recognisable while maintaining a distinctive, cohesive visual identity.
+The project combines botanical research, database design, procedural modelling and environmental design. Its central ambition is to create a digital woodland that feels botanically diverse and recognisable while maintaining a distinctive, cohesive visual identity.
 
 ---
 
@@ -89,7 +87,24 @@ Models should capture defining characteristics, including:
 - Species-specific silhouettes.
 - Natural asymmetry and variation.
 
-### 2. Natural variation
+### 2. Botanical database
+
+Develop a structured botanical database using SQLite.
+
+Rather than embedding species information directly into individual generation scripts, I want to maintain a central source of botanical information that can be accessed by the Python application.
+
+The database will eventually contain:
+
+- Scientific names and taxonomic classifications.
+- Common names and alternative names.
+- Plant growth habits and morphological characteristics.
+- Habitat preferences and ecological associations.
+- Seasonal characteristics.
+- References and sources supporting individual records.
+
+An important consideration is maintaining the provenance of botanical information. Researched characteristics should be distinguishable from approximations or creative decisions made by the procedural generation system.
+
+### 3. Natural variation
 
 Develop systems for introducing controlled randomness into generated models.
 
@@ -97,13 +112,13 @@ Repeated generations of the same species should produce recognisably related but
 
 Variation should be biologically plausible rather than arbitrary.
 
-### 3. Ecological diversity
+### 4. Ecological diversity
 
 Expand the collection to represent different vegetation layers and ecological niches.
 
 The system should eventually be capable of generating complementary groups of plants that could plausibly coexist within a British woodland.
 
-### 4. Seasonal development
+### 5. Seasonal development
 
 Introduce seasonal states and different growth stages.
 
@@ -115,7 +130,7 @@ Potential features include:
 - Winter dormancy.
 - Different stages of plant maturity.
 
-### 5. Procedural environments
+### 6. Procedural environments
 
 Use the generated assets to construct larger natural environments.
 
@@ -123,7 +138,7 @@ This could include woodland floors, clearings, hedgerows and other representativ
 
 Plant distribution should eventually take environmental conditions into account rather than relying entirely on random placement.
 
-### 6. Interactive web experience
+### 7. Interactive web experience
 
 My longer-term ambition is to bring the botanical collection into an interactive digital environment.
 
@@ -133,9 +148,102 @@ Potential features include:
 - Inspecting individual plants.
 - Viewing botanical information about each species.
 - Generating different woodland compositions.
+- Exploring plant habitats and ecological relationships.
 - Experiencing seasonal changes.
 
 The eventual rendering technology and implementation can be decided as the asset library develops.
+
+---
+
+## 🗄️ Botanical database and SQLite
+
+SQLite will provide the project's central botanical data store.
+
+The intention is to separate botanical information from the procedural modelling implementation. This means the same species data could eventually be used by the Blender generation scripts, asset management tools and interactive web experience.
+
+SQLite is particularly suitable for this project because it provides a lightweight relational database without requiring a separate database server.
+
+### Database structure
+
+The initial database design uses several related tables.
+
+| Table              | Purpose                                                    |
+| ------------------ | ---------------------------------------------------------- |
+| `taxa`             | Taxonomic classifications and relationships                |
+| `species`          | Individual species records and botanical characteristics   |
+| `common_names`     | Common and alternative names for species                   |
+| `habitats`         | Definitions of different habitat types                     |
+| `species_habitats` | Relationships between species and their habitats           |
+| `sources`          | References and sources used for botanical research         |
+| `species_sources`  | Links between species records and their supporting sources |
+
+The structure is intended to avoid unnecessary duplication and allow botanical information to be expanded without having to modify the procedural generation code.
+
+For example, a species may have multiple common names, inhabit multiple habitat types and be supported by several references.
+
+These relationships are represented through separate tables rather than storing everything in a single species record.
+
+### Botanical data and procedural parameters
+
+An important distinction is that not every value used to generate a plant is necessarily a documented botanical fact.
+
+I intend to keep two categories of information conceptually separate:
+
+**Botanical information**
+
+- Scientific and common names.
+- Taxonomic classification.
+- Documented leaf arrangements.
+- Growth habits.
+- Habitat preferences.
+- Flowering periods.
+- Supporting references.
+
+**Procedural modelling parameters**
+
+- Generated plant height.
+- Branch distribution.
+- Leaf dimensions.
+- Geometry density.
+- Random variation ranges.
+- Model-specific visual adjustments.
+
+The first category describes the plant. The second describes how the plant is represented in 3D.
+
+Some procedural parameters may be informed by botanical measurements, but they should not automatically be treated as scientifically documented values.
+
+### Python database access
+
+The database will be accessed through a dedicated Python data-access layer.
+
+Rather than allowing individual Blender generation scripts to contain their own SQL queries, the application should provide reusable functions for retrieving species information.
+
+For example:
+
+```python
+species = get_species("quercus_petraea")
+```
+
+This would retrieve the relevant species record and its associated information from SQLite.
+
+The generation system could then use that information to determine which characteristics should influence the resulting model.
+
+This separation should make the project easier to maintain and allow the database implementation to evolve without requiring major changes to the Blender generation scripts.
+
+### Data quality and provenance
+
+Botanical accuracy is an important consideration.
+
+I intend to use reliable botanical references when populating the database and retain source information alongside the relevant records.
+
+This will make it possible to distinguish between:
+
+- Information supported by botanical references.
+- Information inferred from other documented characteristics.
+- Procedural approximations.
+- Artistic decisions made to achieve the intended low-poly aesthetic.
+
+The database should provide a foundation for informed modelling rather than create a false impression of scientific precision.
 
 ---
 
@@ -146,20 +254,26 @@ I intend to develop the project incrementally, prioritising a reliable procedura
 | Phase | Goal                                                   | Estimated duration |
 | ----- | ------------------------------------------------------ | ------------------ |
 | 1     | Development environment and Blender scripting workflow | 1 week             |
-| 2     | Core procedural plant generation system                | 1–2 weeks          |
-| 3     | Initial British woodland species catalogue             | 3–5 weeks          |
-| 4     | Botanical accuracy and natural variation               | 3–5 weeks          |
-| 5     | Additional plant structures, flowers and fruits        | 3–4 weeks          |
-| 6     | Seasonal variation and growth stages                   | 2–4 weeks          |
-| 7     | Woodland composition and ecological distribution       | 3–5 weeks          |
-| 8     | Asset optimisation and export pipeline                 | 2–3 weeks          |
-| 9     | Interactive environment and web integration            | 4–8 weeks          |
+| 2     | SQLite database structure and Python data-access layer | 1–2 weeks          |
+| 3     | Botanical research and initial database population     | 2–4 weeks          |
+| 4     | Core procedural plant generation system                | 2–3 weeks          |
+| 5     | Initial British woodland species catalogue             | 3–5 weeks          |
+| 6     | Botanical accuracy and natural variation               | 3–5 weeks          |
+| 7     | Additional plant structures, flowers and fruits        | 3–4 weeks          |
+| 8     | Seasonal variation and growth stages                   | 2–4 weeks          |
+| 9     | Woodland composition and ecological distribution       | 3–5 weeks          |
+| 10    | Asset optimisation and export pipeline                 | 2–3 weeks          |
+| 11    | Interactive environment and web integration            | 4–8 weeks          |
 
 _Estimates are indicative and assume steady development. Phases may overlap, and botanical research or technical challenges may extend the schedule._
 
 ### Milestones
 
 - [x] Establish a reliable VS Code and Blender workflow.
+- [x] Begin developing the SQLite database structure.
+- [x] Establish an initial relational data model.
+- [ ] Complete and validate the Python database-access layer.
+- [ ] Populate the database with researched botanical information.
 - [ ] Develop reusable procedural modelling functions.
 - [ ] Generate a first collection of representative woodland plants.
 - [ ] Establish a consistent low-poly visual style.
@@ -169,8 +283,94 @@ _Estimates are indicative and assume steady development. Phases may overlap, and
 - [ ] Implement seasonal and developmental variation.
 - [ ] Develop systems for ecological plant distribution.
 - [ ] Create complete woodland environments.
-- [ ] Prepare assets for interactive use.
+- [ ] Prepare optimised assets for interactive use.
 - [ ] Develop the eventual web-based experience.
+
+---
+
+## 🔄 Planned end-to-end workflow
+
+The eventual project architecture is intended to follow a pipeline in which botanical research, structured data, procedural generation and interactive presentation are separate but connected stages.
+
+<text>**1. Botanical research**</text>
+
+Identify a species and collect relevant botanical information from reliable references.
+
+↓
+
+<text>**2. Database population**</text>
+
+Record the species, taxonomy, common names, habitats, characteristics and supporting sources in SQLite.
+
+↓
+
+<text>**3. Python data access**</text>
+
+Retrieve species information through the Python data-access layer, validate the available information and prepare it for generation.
+
+↓
+
+<text>**4. Procedural generation in Blender**</text>
+
+Pass the relevant botanical characteristics into reusable generation functions. Blender uses these parameters to construct a stylised, low-poly representation of the plant.
+
+↓
+
+<text>**5. Asset refinement and optimisation**</text>
+
+Inspect the generated model, adjust its procedural parameters, establish appropriate levels of detail and prepare it for export.
+
+↓
+
+<text>**6. Asset export**</text>
+
+Export the resulting models in a web-compatible format, with glTF/GLB as the intended target.
+
+↓
+
+<text>**7. Interactive web environment**</text>
+
+Load the exported assets into the eventual web experience and use the botanical database to provide relevant species information and ecological context.
+
+### Architecture overview
+
+The intended separation of responsibilities looks something like this:
+
+```text
+             BOTANICAL RESEARCH
+                     |
+                     v
+              SQLITE DATABASE
+                     |
+                     v
+             PYTHON DATA LAYER
+                     |
+                     v
+           PROCEDURAL GENERATION
+                     |
+                     v
+                  BLENDER
+                     |
+                     v
+            ASSET OPTIMISATION
+                     |
+                     v
+               GLB / GLTF
+                     |
+                     v
+             WEB ENVIRONMENT
+                     |
+              +------+------+
+              |             |
+              v             v
+         3D PLANTS    BOTANICAL DATA
+```
+
+The database and 3D asset pipeline are deliberately separate. The web experience should not need to understand how a plant was procedurally generated in Blender.
+
+Likewise, Blender should not need to know how botanical information was originally researched or collected. It should receive structured data through the Python layer.
+
+This separation should make it possible to improve individual parts of the project without having to redesign the entire system.
 
 ---
 
@@ -180,17 +380,22 @@ The project currently uses the following technologies:
 
 | Technology          | Purpose                                                        |
 | ------------------- | -------------------------------------------------------------- |
-| Python              | Procedural generation and automation                           |
+| Python              | Procedural generation, database access and automation          |
 | Blender 5.2.3 LTS   | 3D modelling, scene management and rendering                   |
 | `bpy`               | Blender's Python API                                           |
+| SQLite              | Botanical information and relational data storage              |
 | VS Code             | Primary script editor and development environment              |
 | Blender Development | VS Code extension for Blender integration and script execution |
 | Pylance             | Python language intelligence                                   |
 | `fake-bpy-module`   | Blender API type information for VS Code                       |
 | `uv`                | Python environment and dependency management                   |
 | Git                 | Version control                                                |
+| glTF / GLB          | Intended 3D asset export formats                               |
+| Three.js            | Potential web-based 3D rendering technology                    |
 
 Blender is responsible for executing the actual modelling operations. The external Python environment is primarily for development tooling, code analysis and editor support.
+
+SQLite is intended to be accessible independently of Blender through the Python data-access layer.
 
 ---
 
@@ -213,11 +418,13 @@ The project does not require a particular operating system. Blender is available
 **Recommended for development**
 
 - **Visual Studio Code:** Primary code editor.
-- **Python 3.8 or later:** Required for the development tooling described below.
+- **Python:** Required for the external development environment and database tooling.
 - **uv:** Python package and virtual environment manager.
 - **Pylance:** Python language intelligence and diagnostics for VS Code.
 - **Blender Development:** VS Code extension for interacting with Blender and executing scripts.
 - **Git:** Recommended for version control.
+
+SQLite is included in Python's standard library, so a separate SQLite installation is not normally necessary for Python database access.
 
 You do not need to install Python, `bpy`, `uv` or any VS Code extensions if you simply want to execute the scripts through Blender's built-in Scripting workspace.
 
@@ -225,7 +432,7 @@ You do not need to install Python, `bpy`, `uv` or any VS Code extensions if you 
 
 Clone the repository or download its contents.
 
-Open the project directory in VS Code or Blender, depending on your intended use.
+Open the project directory in Blender or VS Code, depending on your intended use.
 
 The directory should contain files similar to:
 
@@ -237,10 +444,13 @@ web-garden-thing/
 ├── uv.lock
 ├── README.md
 ├── web_garden.blend
-└── ...
+├── data/
+└── src/
+    └── web_garden_thing/
+        └── ...
 ```
 
-The `.blend` file contains the Blender scene, while the Python scripts contain the procedural generation logic.
+The `.blend` file contains the Blender scene, the `data` directory is intended for project data such as the SQLite database, and the Python package contains the application logic.
 
 ### 2. Running scripts directly in Blender
 
@@ -276,15 +486,6 @@ uv sync
 
 This creates the project's `.venv` environment if necessary and installs the dependencies recorded in the lockfile.
 
-To explicitly select a Python interpreter:
-
-```bash
-uv venv --python 3.15
-uv sync
-```
-
-The current development setup uses Homebrew Python 3.15.2, although this particular installation method is not required.
-
 To activate the environment manually:
 
 **Windows PowerShell**
@@ -309,9 +510,9 @@ This allows Pylance to recognise Blender-specific modules, such as `bpy`, and pr
 
 It is important to understand that this is an editor aid. It does not provide a functioning Blender runtime or allow Blender geometry to be generated independently of Blender.
 
-For this project, the dependency is recorded in `pyproject.toml` under the development dependency group.
+The dependency is managed through `pyproject.toml`.
 
-If setting up the project from scratch, you can add it using:
+To add it:
 
 ```bash
 uv add --dev fake-bpy-module
@@ -327,55 +528,31 @@ uv sync
 
 If the project already contains the dependency and lockfile, simply running `uv sync` is sufficient.
 
-**Installing manually with pip**
-
-If you are not using `uv`, activate your virtual environment and install the package with:
-
-```bash
-python -m pip install fake-bpy-module
-```
-
-For a Blender-version-specific package, the alternative is:
-
-```bash
-python -m pip install fake-bpy-module-5.2
-```
-
-The general package provides the latest generated API definitions, while the version-specific package targets Blender 5.2.
-
 For more information, see the [fake-bpy-module project on PyPI](https://pypi.org/project/fake-bpy-module/).
 
 ### 5. Configure VS Code
 
 Open the project directory in VS Code.
 
-Install the following extensions through the VS Code Extensions Marketplace:
+Install the following extensions:
 
 - [Python](https://marketplace.visualstudio.com/items?itemName=ms-python.python)
 - [Pylance](https://marketplace.visualstudio.com/items?itemName=ms-python.vscode-pylance)
 - [Blender Development](https://marketplace.visualstudio.com/items?itemName=JacquesLucke.blender-development)
 
-The Blender Development extension is particularly useful because it provides Blender integration directly within VS Code, including commands for starting Blender sessions and executing scripts.
+The Blender Development extension provides Blender integration directly within VS Code, including commands for starting Blender sessions and executing scripts.
 
 Once installed:
 
 1. Open the project directory in VS Code.
 2. Select the Python interpreter inside `.venv`.
 3. Open the Command Palette.
-4. Use the available Blender Development commands to configure and start Blender.
+4. Use the Blender Development commands to configure and start Blender.
 5. Select your Blender executable when prompted.
-
-The extension provides commands such as:
-
-- `Blender: Start`
-- `Blender: Run Script`
-- `Blender: Reload Addons`
-
-The exact commands available depend on the extension's configuration and project type.
 
 ### 6. Configure Blender API support
 
-Even with `fake-bpy-module` installed, VS Code may need to know where Blender's own Python modules are located.
+VS Code may need to know where Blender's own Python modules are located.
 
 The project uses VS Code's `python.analysis.extraPaths` setting to provide this information.
 
@@ -385,33 +562,21 @@ For my current Blender 5.2.3 installation, the path is:
 /Applications/Blender.app/Contents/Resources/5.2/scripts/modules
 ```
 
-To configure this:
-
-1. Open VS Code settings.
-2. Open the project's `settings.json`.
-3. Add the Blender modules directory to `python.analysis.extraPaths`.
-
-For example:
+To configure this, add the equivalent Blender `scripts/modules` directory to the project's VS Code `settings.json`:
 
 ```json
 {
-  "python.analysis.extraPaths": [
-    "/Applications/Blender.app/Contents/Resources/5.2/scripts/modules"
-  ]
+  "python.analysis.extraPaths": ["/path/to/blender/scripts/modules"]
 }
 ```
 
-This path is specific to my macOS installation. On Windows and Linux, use the equivalent `scripts/modules` directory within the Blender installation.
+The path is installation-specific, so it should be adjusted for Windows, macOS or Linux.
 
 The combination of `fake-bpy-module` and Blender's own module paths gives Pylance the information it needs to understand Blender's Python API.
 
 ### 7. My VS Code and Blender workflow
 
 My preferred workflow is to use VS Code for all script editing and Blender for execution and visual inspection.
-
-The important thing is that Blender should not need to be relaunched every time a script changes.
-
-My workflow is:
 
 1. Open the project directory in VS Code.
 2. Start Blender through the Blender Development extension.
@@ -422,11 +587,29 @@ My workflow is:
 7. Inspect the generated geometry in Blender.
 8. Return to VS Code, make adjustments and repeat.
 
-The extension handles the communication between VS Code and Blender, avoiding the need to repeatedly launch Blender through separate terminal commands or create additional Blender processes for each execution.
+The extension handles communication between VS Code and Blender, avoiding the need to repeatedly launch Blender through separate terminal commands or create additional Blender processes for each execution.
 
-**The distinction is important:** VS Code is responsible for editing and managing the code, while Blender's own Python runtime executes it.
+**VS Code is responsible for editing and managing the code, while Blender's own Python runtime executes it.**
 
-### 8. Iterating on generated models
+### 8. Working with the SQLite database
+
+The database is intended to be managed through the project's Python data-access layer.
+
+Rather than writing SQL queries directly inside Blender generation scripts, the application should expose reusable functions for retrieving botanical information.
+
+For example:
+
+```python
+species = get_species("quercus_petraea")
+```
+
+The returned information can then be passed to the procedural generation system.
+
+SQLite itself does not require a running database server. Python can access the database using its built-in `sqlite3` module.
+
+For direct database inspection, a graphical SQLite browser can also be useful, although this is optional.
+
+### 9. Iterating on generated models
 
 Procedural modelling is an iterative process.
 
@@ -444,9 +627,9 @@ My central principle for Web Garden Thing is that **botanical diversity should i
 
 I don't want to create an arbitrary collection of attractive plants. I want to explore how computational modelling can represent the extraordinary variety of real botanical life, while interpreting it through a distinctive low-poly visual style.
 
-That means researching the organisms being modelled, understanding their defining characteristics and translating those characteristics into reusable procedural systems.
+The SQLite database is an important part of this ambition. It provides a place to preserve botanical knowledge, document sources and build relationships between species and their environments.
 
-The British woodland biome provides a coherent ecological foundation for this exploration, while leaving plenty of room to expand into other habitats in the future.
+That information can then inform procedural generation, allowing the resulting models to be more than visually appealing approximations of generic vegetation.
 
 Ultimately, I want to create a living digital botanical collection: varied, recognisable, ecologically informed and visually cohesive, capable of growing alongside the project itself.
 
