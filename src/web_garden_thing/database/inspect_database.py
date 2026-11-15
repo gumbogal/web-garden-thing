@@ -15,6 +15,7 @@ def inspect_database() -> None:
             WHERE type='table'
             ORDER BY name;"""
         ).fetchall()
+        
     print("Database tables:")
     for (table_name,) in tables:
         print(f"- {table_name}")
