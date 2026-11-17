@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from typing import Any, cast
 
 import bmesh  # type: ignore
-import bpy
+import bpy  # pyright: ignore[reportMissingModuleSource]
 from mathutils import Vector  # type: ignore
 
 type Color = tuple[float, float, float, float]
