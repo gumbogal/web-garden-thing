@@ -106,10 +106,11 @@ def create_material(name: str, color: Color) -> bpy.types.Material:
     cast(Any, material.diffuse_color)[:] = color
     material.use_nodes = True
 
-    principled = material.node_tree.nodes.get("Principled BSDF")
-    if principled:
-        principled.inputs["Base Color"].default_value = color
-        principled.inputs["Roughness"].default_value = 0.85
+    if material.node_tree is not None:
+        principled = material.node_tree.nodes.get("Principled BSDF")
+        if principled:
+            principled.inputs["Base Color"].default_value = color
+            principled.inputs["Roughness"].default_value = 0.85
 
     return material
 
