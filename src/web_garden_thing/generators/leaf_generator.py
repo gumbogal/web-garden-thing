@@ -473,26 +473,35 @@ def generate_stem(
 
 
 def duplicate_leaf_parts(
-    leaf_parts: tuple[bpy.types.Object, bpy.types.Object],
+    leaf: bpy.types.Object,
+    central_vein: bpy.types.Object,
     holder: bpy.types.Object,
     collection: bpy.types.Collection,
 ) -> tuple[bpy.types.Object, bpy.types.Object]:
     """Duplicate the leaf and central vein prototypes under a holder."""
-    duplicates: dict[str, bpy.types.Object] = {}
 
-    for original in leaf_parts:
-        duplicate = original.copy()
-        duplicate.data = original.data.copy()
-        collection.objects.link(duplicate)
+    leaf_duplicate = leaf.copy()
+    if leaf_duplicate is None:
+        raise RuntimeError("Failed to duplicate leaf object")
 
+    leaf_duplicate.data = get_mesh_data(leaf).copy()
+    collection.objects.link(leaf_duplicate)
+
+    vein_duplicate = central_vein.copy()
+    if vein_duplicate is None:
+        raise RuntimeError("Failed to duplicate central vein object")
+
+    vein_duplicate.data = get_curve_data(central_vein).copy()
+    collection.objects.link(vein_duplicate)
+
+    for duplicate in (leaf_duplicate, vein_duplicate):
         duplicate.parent = holder
         duplicate.matrix_parent_inverse.identity()
         duplicate.location = (0.0, 0.0, 0.0)
         duplicate.rotation_euler = (0.0, 0.0, 0.0)
         duplicate.scale = (1.0, 1.0, 1.0)
-        duplicates[original.name] = duplicate
 
-    return duplicates["Leaf_Prototype"], duplicates["Leaf_Central_Vein"]
+    return leaf_duplicate, vein_duplicate
 
 
 def attach_leaves(
@@ -552,7 +561,8 @@ def attach_leaves(
         holder.scale = (scale, scale, scale)
 
         leaf_copy, central_copy = duplicate_leaf_parts(
-            leaf_parts,
+            leaf,
+            central_vein,
             holder,
             collection,
         )
