@@ -9,28 +9,35 @@ from web_garden_thing.database.species import get_species
 @dataclass(frozen=True, slots=True)
 class Taxon:
     """A taxonomic classification of a species."""
+
     scientific_name: str
     rank: str
     authority: str
 
+
 @dataclass(frozen=True, slots=True)
 class CommonName:
-    """A common name associateed with a species."""
+    """A common name associated with a species."""
+
     name: str
     language: str
     is_preferred: bool
 
+
 @dataclass(frozen=True, slots=True)
 class Habitat:
     """A habitat associated with a species."""
+
     id: str
     name: str
     description: str | None
     notes: str | None
 
+
 @dataclass(frozen=True, slots=True)
 class Source:
     """A reference associated with a species."""
+
     id: int
     title: str
     publisher: str | None
@@ -42,9 +49,11 @@ class Source:
     notes: str | None
     relationship_notes: str | None
 
+
 @dataclass(frozen=True, slots=True)
 class SpeciesProfile:
     """A complete botanical profile of a species."""
+
     id: str
     scientific_name: str
     rank: str
@@ -71,9 +80,7 @@ class SpeciesProfile:
             authority=record.get("authority"),
             growth_form=record.get("growth_form"),
             description=record.get("description"),
-            taxonomy=tuple(
-                Taxon(**item) for item in record["taxonomy"]
-            ),
+            taxonomy=tuple(Taxon(**item) for item in record["taxonomy"]),
             common_names=tuple(
                 CommonName(
                     name=item["name"],
@@ -82,16 +89,13 @@ class SpeciesProfile:
                 )
                 for item in record["common_names"]
             ),
-            habitats=tuple(
-                Habitat(**item) for item in record["habitats"]
-            ),
-            sources=tuple(
-                Source(**item) for item in record["sources"]
-            ),
+            habitats=tuple(Habitat(**item) for item in record["habitats"]),
+            sources=tuple(Source(**item) for item in record["sources"]),
         )
 
+
 def load_species_profile(
-        species_id: str,
+    species_id: str,
 ) -> SpeciesProfile | None:
     """Load a species profile using its database identifier."""
     record = get_species(species_id)

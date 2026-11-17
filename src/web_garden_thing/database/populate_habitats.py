@@ -23,6 +23,7 @@ habitats = [
     },
 ]
 
+
 def populate_habitats() -> None:
     """Insert the initial habitat records."""
 
@@ -41,6 +42,7 @@ def populate_habitats() -> None:
         )
 
     print(f"Successfully populated {len(habitats)} habitats.")
+
 
 if __name__ == "__main__":
     populate_habitats()

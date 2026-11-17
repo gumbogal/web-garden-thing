@@ -1,4 +1,3 @@
-
 """Add sessile oak to the botanical database."""
 
 from web_garden_thing.database.connection import get_connection
@@ -19,10 +18,7 @@ SOURCES = [
     {
         "title": "Quercus petraea (Matt.) Liebl.",
         "publisher": "Royal Botanic Gardens, Kew",
-        "url": (
-            "https://powo.science.kew.org/taxon/"
-            "urn:lsid:ipni.org:names:359961-1"
-        ),
+        "url": ("https://powo.science.kew.org/taxon/urn:lsid:ipni.org:names:359961-1"),
         "source_type": "Taxonomic reference",
         "accessed_on": "2026-11-15",
     },
@@ -53,7 +49,6 @@ def populate_sessile_oak() -> None:
     """Insert sessile oak and its associated botanical records."""
 
     with get_connection() as connection:
-
         # Insert the taxonomic hierarchy.
         parent_taxon_id = None
 

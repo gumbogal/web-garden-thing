@@ -6,20 +6,10 @@ from web_garden_thing.database.connection import get_connection
 
 
 def get_species(species_id: str) -> dict[str, Any] | None:
-    """Retrieve a species and its associated information from the database.
-
-    Args:
-        species_id (str): The unique identifier of the species to retrieve.
-
-    Returns:
-        A dictionary containing the species and its associated
-        information, or None if the species does not exist.
-
-        dict[str, Any] | None: The species information if found, otherwise None.
-    """
+    """Return a species record and its related botanical data."""
 
     with get_connection() as connection:
-        #Retrieve the main species record.
+        # Retrieve the main species record.
         species = connection.execute(
             """
             SELECT
@@ -102,9 +92,7 @@ def get_species(species_id: str) -> dict[str, Any] | None:
             (species_id,),
         ).fetchall()
 
-        result["common_names"] = [
-            dict(row) for row in common_names
-        ]
+        result["common_names"] = [dict(row) for row in common_names]
 
         # Retrieve associates habitats.
         habitats = connection.execute(
@@ -123,9 +111,7 @@ def get_species(species_id: str) -> dict[str, Any] | None:
             (species_id,),
         ).fetchall()
 
-        result["habitats"] = [
-            dict(row) for row in habitats
-        ]
+        result["habitats"] = [dict(row) for row in habitats]
 
         # Retrieve associated sources.
         sources = connection.execute(
@@ -138,7 +124,7 @@ def get_species(species_id: str) -> dict[str, Any] | None:
                 sources.source_type,
                 sources.accessed_on,
                 sources.licence,
-                species_sources.notes,
+                sources.notes,
                 species_sources.information_type,
                 species_sources.notes AS relationship_notes
             FROM species_sources
@@ -150,8 +136,6 @@ def get_species(species_id: str) -> dict[str, Any] | None:
             (species_id,),
         ).fetchall()
 
-        result["sources"] = [
-            dict(row) for row in sources
-        ]
+        result["sources"] = [dict(row) for row in sources]
 
         return result

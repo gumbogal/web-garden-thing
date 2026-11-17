@@ -530,6 +530,19 @@ If the project already contains the dependency and lockfile, simply running `uv 
 
 For more information, see the [fake-bpy-module project on PyPI](https://pypi.org/project/fake-bpy-module/).
 
+### Code quality checks
+
+Run the Python tests and lint checks from the project root:
+
+```bash
+uv run python -m unittest discover -s tests
+uv run ruff check .
+uv run ruff format --check .
+```
+
+Pylance uses the project’s Pyright settings in `pyproject.toml` for Python version,
+source paths and standard type checking.
+
 ### 5. Configure VS Code
 
 Open the project directory in VS Code.

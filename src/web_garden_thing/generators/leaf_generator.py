@@ -43,7 +43,13 @@ def create_collection(name: str) -> bpy.types.Collection:
         bpy.context.scene.collection.children.link(collection)
 
     for obj in list(collection.objects):
+        data = obj.data
         bpy.data.objects.remove(obj, do_unlink=True)
+
+        if isinstance(data, bpy.types.Mesh) and data.users == 0:
+            bpy.data.meshes.remove(data)
+        elif isinstance(data, bpy.types.Curve) and data.users == 0:
+            bpy.data.curves.remove(data)
 
     return collection
 
