@@ -221,10 +221,10 @@ def sample_leaf_surface(
     d_index = a_index + spec.columns
     c_index = d_index + 1
 
-    a = Vector(target_mesh.vertices[a_index].co)
-    b = Vector(target_mesh.vertices[b_index].co)
-    c = Vector(target_mesh.vertices[c_index].co)
-    d = Vector(target_mesh.vertices[d_index].co)
+    a = target_mesh.vertices[a_index].co.copy()
+    b = target_mesh.vertices[b_index].co.copy()
+    c = target_mesh.vertices[c_index].co.copy()
+    d = target_mesh.vertices[d_index].co.copy()
 
     if y <= x:
         point = a * (1.0 - x) + b * (x - y) + c * y
