@@ -13,6 +13,23 @@ from mathutils import Vector  # type: ignore
 type Color = tuple[float, float, float, float]
 type Point3D = tuple[float, float, float]
 
+
+def get_mesh_data(obj: bpy.types.Object) -> bpy.types.Mesh:
+    """Return an object's mesh data, raising an error if it isn't a mesh."""
+    if not isinstance(obj.data, bpy.types.Mesh):
+        raise TypeError(f"Expected a mesh object, got {obj.name}")
+
+    return obj.data
+
+
+def get_curve_data(obj: bpy.types.Object) -> bpy.types.Curve:
+    """Return an object's curve data, raising an error if it isn't a curve."""
+    if not isinstance(obj.data, bpy.types.Curve):
+        raise TypeError(f"Expected a curve object, got {obj.name}")
+
+    return obj.data
+
+
 COLLECTION_NAME = "Plant Generator"
 
 
@@ -160,7 +177,7 @@ def create_leaf_mesh(
 
     leaf = bpy.data.objects.new("Leaf_Prototype", mesh)
     collection.objects.link(leaf)
-    leaf.data.materials.append(material)
+    mesh.materials.append(material)
 
     for polygon in mesh.polygons:
         polygon.use_smooth = False
@@ -258,7 +275,7 @@ def create_central_vein(
 
     vein = bpy.data.objects.new("Leaf_Central_Vein", curve_data)
     collection.objects.link(vein)
-    vein.data.materials.append(material)
+    curve_data.materials.append(material)
     vein["vein_type"] = "central"
     return vein
 
@@ -267,7 +284,9 @@ def deform_leaf_mesh(
     obj: bpy.types.Object, sweep: float, droop: float, spec: PlantSpec
 ) -> None:
     """Apply a per-leaf sweep and droop deformation to its mesh."""
-    for vertex in obj.data.vertices:
+    mesh = get_mesh_data(obj)
+
+    for vertex in mesh.vertices:
         coordinates = vertex.co
         t = max(0.0, min(coordinates.y / spec.length, 1.0))
         profile = math.sin(math.pi * t)
@@ -275,7 +294,7 @@ def deform_leaf_mesh(
         coordinates.x += sweep * profile
         coordinates.z += droop * profile
 
-    obj.data.update()
+    mesh.update()
 
 
 def create_secondary_vein_mesh(
@@ -287,6 +306,9 @@ def create_secondary_vein_mesh(
     spec: PlantSpec,
 ) -> bpy.types.Object:
     """Build a tapered ribbon that follows the triangulated leaf surface."""
+
+    leaf_mesh = get_mesh_data(leaf)
+
     ribbon_vertices: list[Point3D] = []
     ribbon_faces: list[tuple[int, int, int, int]] = []
 
@@ -297,19 +319,19 @@ def create_secondary_vein_mesh(
         u = side * 0.85 * progress
         t = start_t + spec.secondary_vein_reach * progress
 
-        point, normal = sample_leaf_surface(leaf.data, u, t, spec)
+        point, normal = sample_leaf_surface(leaf_mesh, u, t, spec)
 
         previous_progress = max(0.0, progress - 0.001)
         next_progress = min(1.0, progress + 0.001)
 
         previous_point, _ = sample_leaf_surface(
-            leaf.data,
+            leaf_mesh,
             side * 0.85 * previous_progress,
             start_t + spec.secondary_vein_reach * previous_progress,
             spec,
         )
         next_point, _ = sample_leaf_surface(
-            leaf.data,
+            leaf_mesh,
             side * 0.85 * next_progress,
             start_t + spec.secondary_vein_reach * next_progress,
             spec,
@@ -341,7 +363,7 @@ def create_secondary_vein_mesh(
         vein_mesh,
     )
     collection.objects.link(vein)
-    vein.data.materials.append(material)
+    vein_mesh.materials.append(material)
     vein["vein_type"] = "secondary"
     vein["vein_index"] = vein_index
     vein["vein_side"] = side
@@ -358,8 +380,11 @@ def regenerate_central_vein(
     spec: PlantSpec,
 ) -> None:
     """Update a central vein to match a deformed leaf."""
-    points = central_vein_points(leaf.data, spec)
-    spline = vein.data.splines[0]
+    leaf_mesh = get_mesh_data(leaf)
+    vein_curve = get_curve_data(vein)
+
+    points = central_vein_points(leaf_mesh, spec)
+    spline = vein_curve.splines[0]
 
     for index, point in enumerate(points):
         spline.points[index].co = (*point, 1.0)
@@ -573,6 +598,7 @@ def select_generated_plant(
 
 def report_generation(leaf: bpy.types.Object, spec: PlantSpec) -> None:
     """Print a summary of the generated plant."""
+    mesh = get_mesh_data(leaf)
     objects_per_leaf = 2 + spec.secondary_vein_count * 2
 
     print("------------------------------------")
@@ -584,8 +610,8 @@ def report_generation(leaf: bpy.types.Object, spec: PlantSpec) -> None:
     print(f"Stem height: {spec.stem_height}")
     print(f"Leaf length: {spec.length}")
     print(f"Leaf width: {spec.width}")
-    print(f"Mesh vertices: {len(leaf.data.vertices)}")
-    print(f"Mesh faces: {len(leaf.data.polygons)}")
+    print(f"Mesh vertices: {len(mesh.vertices)}")
+    print(f"Mesh faces: {len(mesh.polygons)}")
     print(f"Secondary vein pairs: {spec.secondary_vein_count}")
     print(f"Samples per secondary vein: {spec.secondary_vein_samples}")
     print("------------------------------------")
@@ -604,7 +630,7 @@ def generate_leaf(spec: PlantSpec | None = None) -> None:
 
     leaf = create_leaf_mesh(collection, leaf_material, spec)
     central_vein = create_central_vein(
-        central_vein_points(leaf.data, spec),
+        central_vein_points(get_mesh_data(leaf), spec),
         collection,
         vein_material,
         spec,
