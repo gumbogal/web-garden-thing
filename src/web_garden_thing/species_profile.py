@@ -1,5 +1,7 @@
 """Species profile models and database loading."""
 
+from __future__ import annotations
+
 from dataclasses import dataclass
 from typing import Any
 
