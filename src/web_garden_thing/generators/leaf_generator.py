@@ -457,7 +457,7 @@ def generate_stem(
 
     stem = bpy.data.objects.new("Stem_Prototype", stem_mesh)
     collection.objects.link(stem)
-    stem.data.materials.append(material)
+    stem_mesh.materials.append(material)
 
     for polygon in stem_mesh.polygons:
         polygon.use_smooth = False
