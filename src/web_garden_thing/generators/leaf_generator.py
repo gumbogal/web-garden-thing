@@ -17,7 +17,7 @@ COLLECTION_NAME = "Plant Generator"
 
 
 @dataclass(frozen=True, slots=True)
-class LeafSpec:
+class PlantSpec:
     """Parameters controlling the generated plant and its leaves."""
 
     length: float = 2.0
@@ -97,7 +97,7 @@ def create_material(name: str, color: Color) -> bpy.types.Material:
     return material
 
 
-def leaf_surface(u: float, t: float, spec: LeafSpec) -> Point3D:
+def leaf_surface(u: float, t: float, spec: PlantSpec) -> Point3D:
     """Return a point on the curved leaf surface for normalized coordinates."""
     if t <= 0.0 or t >= 1.0:
         return (0.0, spec.length * t, 0.0)
@@ -119,7 +119,7 @@ def leaf_surface(u: float, t: float, spec: LeafSpec) -> Point3D:
 def create_leaf_mesh(
     collection: bpy.types.Collection,
     material: bpy.types.Material,
-    spec: LeafSpec,
+    spec: PlantSpec,
 ) -> bpy.types.Object:
     """Create the triangulated leaf mesh and store its defining parameters."""
     vertices: list[Point3D] = [(0.0, 0.0, 0.0)]
@@ -183,7 +183,7 @@ def sample_leaf_surface(
     target_mesh: bpy.types.Mesh,
     u: float,
     t: float,
-    spec: LeafSpec,
+    spec: PlantSpec,
 ) -> tuple[Vector, Vector]:
     """Interpolate a point and normal on the triangulated leaf mesh."""
     t = max(1.0 / (spec.rows + 1), min(t, spec.rows / (spec.rows + 1)))
@@ -224,7 +224,7 @@ def normalized_vector(vector: Vector) -> Vector:
     return cast(Vector, vector.normalized())
 
 
-def central_vein_points(leaf_mesh: bpy.types.Mesh, spec: LeafSpec) -> list[Vector]:
+def central_vein_points(leaf_mesh: bpy.types.Mesh, spec: PlantSpec) -> list[Vector]:
     """Return points along the center of the leaf mesh."""
     middle_column = spec.columns // 2
     points = [leaf_mesh.vertices[0].co.copy()]
@@ -241,7 +241,7 @@ def create_central_vein(
     points: list[Vector],
     collection: bpy.types.Collection,
     material: bpy.types.Material,
-    spec: LeafSpec,
+    spec: PlantSpec,
 ) -> bpy.types.Object:
     """Create the central vein as a beveled curve."""
     curve_data = bpy.data.curves.new("Central_Vein_Curve", "CURVE")
@@ -263,7 +263,9 @@ def create_central_vein(
     return vein
 
 
-def deform_leaf_mesh(obj: bpy.types.Object, sweep: float, droop: float, spec: LeafSpec) -> None:
+def deform_leaf_mesh(
+    obj: bpy.types.Object, sweep: float, droop: float, spec: PlantSpec
+) -> None:
     """Apply a per-leaf sweep and droop deformation to its mesh."""
     for vertex in obj.data.vertices:
         coordinates = vertex.co
@@ -282,7 +284,7 @@ def create_secondary_vein_mesh(
     side: int,
     collection: bpy.types.Collection,
     material: bpy.types.Material,
-    spec: LeafSpec,
+    spec: PlantSpec,
 ) -> bpy.types.Object:
     """Build a tapered ribbon that follows the triangulated leaf surface."""
     ribbon_vertices: list[Point3D] = []
@@ -353,7 +355,7 @@ def create_secondary_vein_mesh(
 def regenerate_central_vein(
     leaf: bpy.types.Object,
     vein: bpy.types.Object,
-    spec: LeafSpec,
+    spec: PlantSpec,
 ) -> None:
     """Update a central vein to match a deformed leaf."""
     points = central_vein_points(leaf.data, spec)
@@ -366,7 +368,7 @@ def regenerate_central_vein(
 def generate_stem(
     collection: bpy.types.Collection,
     material: bpy.types.Material,
-    spec: LeafSpec,
+    spec: PlantSpec,
 ) -> bpy.types.Object:
     """Create a bent, tapered stem mesh."""
     vertices: list[Point3D] = []
@@ -374,17 +376,21 @@ def generate_stem(
 
     for segment in range(spec.stem_segments + 1):
         t = segment / spec.stem_segments
-        center = Vector((
-            spec.stem_bend_x * t**2,
-            spec.stem_bend_y * math.sin(math.pi * t),
-            spec.stem_height * t,
-        ))
+        center = Vector(
+            (
+                spec.stem_bend_x * t**2,
+                spec.stem_bend_y * math.sin(math.pi * t),
+                spec.stem_height * t,
+            )
+        )
 
-        tangent = Vector((
-            2.0 * spec.stem_bend_x * t,
-            spec.stem_bend_y * math.pi * math.cos(math.pi * t),
-            spec.stem_height,
-        )).normalized()
+        tangent = Vector(
+            (
+                2.0 * spec.stem_bend_x * t,
+                spec.stem_bend_y * math.pi * math.cos(math.pi * t),
+                spec.stem_height,
+            )
+        ).normalized()
 
         reference = Vector((0.0, 1.0, 0.0))
         axis_u = normalized_vector(cast(Vector, tangent.cross(reference)))
@@ -393,9 +399,7 @@ def generate_stem(
 
         for side in range(spec.stem_sides):
             angle = (side / spec.stem_sides) * math.tau
-            offset = (
-                axis_u * math.cos(angle) + axis_v * math.sin(angle)
-            ) * radius
+            offset = (axis_u * math.cos(angle) + axis_v * math.sin(angle)) * radius
             position = cast(Vector, center + offset)
             vertices.append((position.x, position.y, position.z))
 
@@ -470,7 +474,7 @@ def attach_leaves(
     central_vein: bpy.types.Object,
     collection: bpy.types.Collection,
     vein_material: bpy.types.Material,
-    spec: LeafSpec,
+    spec: PlantSpec,
 ) -> None:
     """Duplicate, orient, and deform leaves along the stem."""
     leaf_parts = (leaf, central_vein)
@@ -490,30 +494,34 @@ def attach_leaves(
         elevation_degrees += math.sin(index * 1.7) * spec.leaf_elevation_variation
         elevation = math.radians(elevation_degrees)
 
-        direction = Vector((
-            math.cos(angle) * math.cos(elevation),
-            math.sin(angle) * math.cos(elevation),
-            math.sin(elevation),
-        )).normalized()
+        direction = Vector(
+            (
+                math.cos(angle) * math.cos(elevation),
+                math.sin(angle) * math.cos(elevation),
+                math.sin(elevation),
+            )
+        ).normalized()
 
-        height = spec.leaf_height_min + (
-            spec.leaf_height_max - spec.leaf_height_min
-        ) * progress
+        height = (
+            spec.leaf_height_min
+            + (spec.leaf_height_max - spec.leaf_height_min) * progress
+        )
 
         holder = bpy.data.objects.new(f"Leaf_Holder_{index + 1}", None)
         collection.objects.link(holder)
-        holder.location = Vector((
-            spec.stem_bend_x * (height / spec.stem_height) ** 2,
-            spec.stem_bend_y * math.sin(math.pi * height / spec.stem_height),
-            height,
-        ))
+        holder.location = Vector(
+            (
+                spec.stem_bend_x * (height / spec.stem_height) ** 2,
+                spec.stem_bend_y * math.sin(math.pi * height / spec.stem_height),
+                height,
+            )
+        )
         holder.rotation_mode = "QUATERNION"
         holder.rotation_quaternion = direction.to_track_quat("Y", "Z")
 
         variation = 0.94 + 0.06 * math.sin(index * 2.4)
         scale = (
-            spec.leaf_scale_min
-            + (spec.leaf_scale_max - spec.leaf_scale_min) * progress
+            spec.leaf_scale_min + (spec.leaf_scale_max - spec.leaf_scale_min) * progress
         ) * variation
         holder.scale = (scale, scale, scale)
 
@@ -563,7 +571,7 @@ def select_generated_plant(
     bpy.context.view_layer.objects.active = stem
 
 
-def report_generation(leaf: bpy.types.Object, spec: LeafSpec) -> None:
+def report_generation(leaf: bpy.types.Object, spec: PlantSpec) -> None:
     """Print a summary of the generated plant."""
     objects_per_leaf = 2 + spec.secondary_vein_count * 2
 
@@ -583,10 +591,10 @@ def report_generation(leaf: bpy.types.Object, spec: LeafSpec) -> None:
     print("------------------------------------")
 
 
-def generate_leaf(spec: LeafSpec | None = None) -> None:
+def generate_leaf(spec: PlantSpec | None = None) -> None:
     """Generate the plant described by ``spec`` in the active Blender scene."""
     if spec is None:
-        spec = LeafSpec()
+        spec = PlantSpec()
 
     collection = create_collection(COLLECTION_NAME)
 
