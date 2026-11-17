@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from typing import cast
+from typing import Any, cast
 
 import bmesh  # type: ignore
 import bpy
@@ -103,7 +103,7 @@ def create_material(name: str, color: Color) -> bpy.types.Material:
     if material is None:
         material = bpy.data.materials.new(name)
 
-    material.diffuse_color = color
+    cast(Any, material.diffuse_color)[:] = color
     material.use_nodes = True
 
     principled = material.node_tree.nodes.get("Principled BSDF")
